@@ -3,6 +3,7 @@ import 'source-map-support/register';
 import * as cdk from 'aws-cdk-lib';
 import { ProductsAppStack } from '../lib/productsApp-stack'
 import { ECommerceApiStack } from '../lib/eCommerceAPI-stack'
+import { ProductsAppLayersStack } from '../lib/productsAppLayers-stack'
 
 const app = new cdk.App();
 
@@ -16,12 +17,16 @@ const tags = {
   team: 'Udemy_AWSServerlessWTPAndCDK'
 }
 
-const productsAppStack = new ProductsAppStack(app, 'ProductsApp', { tags, env })
+const props = { tags, env }
+
+const productsAppLayersStack = new ProductsAppLayersStack(app, 'ProductsAppLayers', props)
+const productsAppStack = new ProductsAppStack(app, 'ProductsApp', props)
+productsAppStack.addDependency(productsAppLayersStack)
+
 
 const eCommerceApiStack = new ECommerceApiStack(app, 'ECommerceApi', {
+  ...props,
+  productsAdminHandler: productsAppStack.productsAdminHandler,
   productsFetchHandler: productsAppStack.productsFetchHandler,
-  tags,
-  env,
 })
-
 eCommerceApiStack.addDependency(productsAppStack)

@@ -1,30 +1,69 @@
-import { APIGatewayProxyEvent, APIGatewayProxyResult, Context } from "aws-lambda";
+import {
+  APIGatewayProxyEvent,
+  APIGatewayProxyResult,
+  Context,
+} from "aws-lambda";
+import { Product, ProductRepository } from "/opt/nodejs/productsLayer";
+import { DynamoDB } from 'aws-sdk'
 
-export async function handler(event: APIGatewayProxyEvent, context: Context): Promise<APIGatewayProxyResult> {
-  const method = event.httpMethod
+const productsDdb = process.env.PRODUCTS_DDB!
+const ddbClient = new DynamoDB.DocumentClient()
 
-  const lambdaRequestID = context.awsRequestId
-  const apiRequestID = event.requestContext.requestId
+const productRepository = new ProductRepository(ddbClient, productsDdb)
 
-  console.log(`API Gateway RequestId: ${apiRequestID} - Lambda RequestId: ${lambdaRequestID}`)
+const toJSON = (obj: Product | Product[] | { message: string }) => JSON.stringify(obj)
 
-  if (event.resource === '/products') {
-    if (method === 'GET') {
-      console.log('GET')
+export async function handler(
+  event: APIGatewayProxyEvent,
+  context: Context
+): Promise<APIGatewayProxyResult> {
+  const method = event.httpMethod;
+
+  const lambdaRequestID = context.awsRequestId;
+  const apiRequestID = event.requestContext.requestId;
+
+  console.log(
+    `API Gateway RequestId: ${apiRequestID} - Lambda RequestId: ${lambdaRequestID}`
+  );
+
+  if (event.resource === "/products") {
+    if (method === "GET") {
+      console.log("GET");
+
+      const products = await productRepository.getAllProducts()
 
       return {
         statusCode: 200,
-        body: JSON.stringify({
-          message: 'GET Products - OK'
-        })
-      }
+        body: toJSON(products),
+      };
+    }
+  } else if (event.resource === "/products/{id}") {
+    const productId = event.pathParameters?.id as string;
+    console.log(`GET /products/${productId}`);
+
+    try {
+      const product = await productRepository.getProductById(productId)
+
+      return {
+        statusCode: 200,
+        body: toJSON(product),
+      };
+    } catch (error) {
+      console.error((<Error>error).message)
+
+      return {
+        statusCode: 404,
+        body: toJSON({
+          message: (<Error>error).message
+        }),
+      };
     }
   }
 
   return {
     statusCode: 400,
-    body: JSON.stringify({
-      message: 'Bad request'
-    })
-  }
+    body: toJSON({
+      message: "Bad request",
+    }),
+  };
 }
