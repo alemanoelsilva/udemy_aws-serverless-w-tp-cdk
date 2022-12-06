@@ -46,7 +46,10 @@ export class ProductsAppStack extends cdk.Stack {
         PRODUCTS_DDB: this.productsDb.tableName,
       },
       // adding layers
-      layers: [productsLayer]
+      layers: [productsLayer],
+      // adding tracing to see on xray
+      tracing: lambda.Tracing.ACTIVE,
+      insightsVersion: lambda.LambdaInsightsVersion.VERSION_1_0_143_0,
     })
 
     //* granting permission to lambda function access (read) the dynamo table
@@ -67,7 +70,10 @@ export class ProductsAppStack extends cdk.Stack {
         PRODUCTS_DDB: this.productsDb.tableName,
       },
       // adding layers
-      layers: [productsLayer]
+      layers: [productsLayer],
+      // adding tracing to see on xray
+      tracing: lambda.Tracing.ACTIVE,
+      insightsVersion: lambda.LambdaInsightsVersion.VERSION_1_0_143_0,
     })
 
     //* granting permission to lambda function access (write) the dynamo table
