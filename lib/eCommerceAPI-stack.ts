@@ -11,6 +11,7 @@ import { Construct } from 'constructs'
 interface ECommerceApiStackProps extends cdk.StackProps {
   productsFetchHandler: lambdaNodeJS.NodejsFunction
   productsAdminHandler: lambdaNodeJS.NodejsFunction
+  ordersHandler: lambdaNodeJS.NodejsFunction
 }
 
 export class ECommerceApiStack extends cdk.Stack {
@@ -37,6 +38,11 @@ export class ECommerceApiStack extends cdk.Stack {
       }
     })
 
+    this.createProductsService(props, api)
+    this.createOrdersService(props, api)
+  }
+
+  private createProductsService(props: ECommerceApiStackProps, api: apigateway.RestApi) {
     const productsFetchIntegration = new apigateway.LambdaIntegration(props.productsFetchHandler)
 
     // adding /products to resource
@@ -55,11 +61,41 @@ export class ECommerceApiStack extends cdk.Stack {
     const productsAdminIntegration = new apigateway.LambdaIntegration(props.productsAdminHandler)
     //* [POST] /products
     productsResource.addMethod('POST', productsAdminIntegration)
-   
+
     //* [PUT] /products/{id}
     productIdResource.addMethod('PUT', productsAdminIntegration)
-   
+
     //* [DELETE] /products/{id}
     productIdResource.addMethod('DELETE', productsAdminIntegration)
+  }
+  private createOrdersService(props: ECommerceApiStackProps, api: apigateway.RestApi) {
+    const ordersIntegration = new apigateway.LambdaIntegration(props.ordersHandler)
+
+    //! adding /orders to resource
+    const ordersResource = api.root.addResource('orders')
+
+    //! MAPPING routes to GET
+    //* [GET] /orders
+    //* [GET] /orders?email=XXX
+    //* [GET] /orders?email=XXX&orderId=123
+    ordersResource.addMethod('GET', ordersIntegration)
+
+    //! MAPPING routes to DELETE
+    //* [DELETE] /orders?email=XXX&orderId=123
+    ordersResource.addMethod('DELETE', ordersIntegration, {
+      requestParameters: {
+        'method.request.querystring.email': true,
+        'method.request.querystring.orderId': true,
+      },
+      requestValidator: new apigateway.RequestValidator(this, 'OrderDeletionValidator', {
+        restApi: api,
+        requestValidatorName: 'orderDeletionValidator',
+        validateRequestParameters: true,
+      })
+    })
+
+    //! MAPPING routes to POST
+    //* [POST] /orders
+    ordersResource.addMethod('POST', ordersIntegration)
   }
 }

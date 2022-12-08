@@ -13,13 +13,13 @@ interface ProductsAppStackProps extends cdk.StackProps {
 export class ProductsAppStack extends cdk.Stack {
   readonly productsFetchHandler: lambdaNodeJS.NodejsFunction
   readonly productsAdminHandler: lambdaNodeJS.NodejsFunction
-  readonly productsDb: dynamoDB.Table
+  readonly productsDdb: dynamoDB.Table
 
   constructor(scope: Construct, id: string, props: ProductsAppStackProps) {
     super(scope, id, props)
 
     //* dynamo table
-    this.productsDb = new dynamoDB.Table(this, "ProductsDb", {
+    this.productsDdb = new dynamoDB.Table(this, "ProductsDdb", {
       tableName: 'products',
       removalPolicy: cdk.RemovalPolicy.DESTROY,
       partitionKey: {
@@ -51,7 +51,7 @@ export class ProductsAppStack extends cdk.Stack {
         sourceMap: false,
       },
       environment: {
-        PRODUCTS_DDB: this.productsDb.tableName,
+        PRODUCTS_DDB: this.productsDdb.tableName,
       },
       // adding layers
       layers: [productsLayer],
@@ -62,7 +62,7 @@ export class ProductsAppStack extends cdk.Stack {
     })
 
     //* granting permission to lambda function access (read) the dynamo table
-    this.productsDb.grantReadData(this.productsFetchHandler)
+    this.productsDdb.grantReadData(this.productsFetchHandler)
 
     //*! lambda to create events about the products
     const productEventsHandler = new lambdaNodeJS.NodejsFunction(this, 'ProductEventsFunction', {
@@ -101,7 +101,7 @@ export class ProductsAppStack extends cdk.Stack {
         sourceMap: false,
       },
       environment: {
-        PRODUCTS_DDB: this.productsDb.tableName,
+        PRODUCTS_DDB: this.productsDdb.tableName,
         PRODUCT_EVENTS_FUNCTION_NAME: productEventsHandler.functionName,
       },
       // adding layers
@@ -113,7 +113,7 @@ export class ProductsAppStack extends cdk.Stack {
     })
 
     //* granting permission to lambda function access (write) the dynamo table
-    this.productsDb.grantWriteData(this.productsAdminHandler)
+    this.productsDdb.grantWriteData(this.productsAdminHandler)
     //* granting permission to lambda function (admin) access another lambda function by invoke (events)
     productEventsHandler.grantInvoke(this.productsAdminHandler)
   }
