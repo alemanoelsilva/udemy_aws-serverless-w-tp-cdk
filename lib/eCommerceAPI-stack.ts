@@ -59,15 +59,61 @@ export class ECommerceApiStack extends cdk.Stack {
 
     //! MAPPING routes to POST/PUT/DELETE
     const productsAdminIntegration = new apigateway.LambdaIntegration(props.productsAdminHandler)
+
+    //* request validator
+    const productRequestValidator = new apigateway.RequestValidator(this, 'ProductRequestValidator', {
+      restApi: api,
+      requestValidatorName: 'Product request validator',
+      validateRequestBody: true,
+    })
+
+    //* request product model
+    const productModel = new apigateway.Model(this, 'ProductModel', {
+      modelName: 'ProductModel',
+      restApi: api,
+      schema: {
+        type: apigateway.JsonSchemaType.OBJECT,
+        properties: {
+          productName: {
+            type: apigateway.JsonSchemaType.STRING
+          },
+          code: {
+            type: apigateway.JsonSchemaType.STRING
+          },
+          model: {
+            type: apigateway.JsonSchemaType.STRING
+          },
+          productUrl: {
+            type: apigateway.JsonSchemaType.STRING
+          },
+          price: {
+            type: apigateway.JsonSchemaType.NUMBER
+          },
+        },
+        required: ['productName', 'code', 'price']
+      }
+    })
+
     //* [POST] /products
-    productsResource.addMethod('POST', productsAdminIntegration)
+    productsResource.addMethod('POST', productsAdminIntegration, {
+      requestValidator: productRequestValidator,
+      requestModels: {
+        'application/json': productModel
+      }
+    })
 
     //* [PUT] /products/{id}
-    productIdResource.addMethod('PUT', productsAdminIntegration)
+    productIdResource.addMethod('PUT', productsAdminIntegration, {
+      requestValidator: productRequestValidator,
+      requestModels: {
+        'application/json': productModel
+      }
+    })
 
     //* [DELETE] /products/{id}
     productIdResource.addMethod('DELETE', productsAdminIntegration)
   }
+
   private createOrdersService(props: ECommerceApiStackProps, api: apigateway.RestApi) {
     const ordersIntegration = new apigateway.LambdaIntegration(props.ordersHandler)
 
@@ -95,7 +141,45 @@ export class ECommerceApiStack extends cdk.Stack {
     })
 
     //! MAPPING routes to POST
+    //* request validator
+    const orderRequestValidator = new apigateway.RequestValidator(this, 'OrderRequestValidator', {
+      restApi: api,
+      requestValidatorName: 'Order request validator',
+      validateRequestBody: true,
+    })
+
+    //* request order model
+    const orderModel = new apigateway.Model(this, 'OrderModel', {
+      modelName: 'OrderModel',
+      restApi: api,
+      schema: {
+        type: apigateway.JsonSchemaType.OBJECT,
+        properties: {
+          email: {
+            type: apigateway.JsonSchemaType.STRING
+          },
+          productIds: {
+            type: apigateway.JsonSchemaType.ARRAY,
+            minItems: 1,
+            items: {
+              type: apigateway.JsonSchemaType.STRING
+            }
+          },
+          payment: {
+            type: apigateway.JsonSchemaType.STRING,
+            enum: ['CASH', 'DEBIT_CARD', 'CREDIT_CARD']
+          }
+        },
+        required: ['email', 'productIds', 'payment']
+      }
+    })
+
     //* [POST] /orders
-    ordersResource.addMethod('POST', ordersIntegration)
+    ordersResource.addMethod('POST', ordersIntegration, {
+      requestValidator: orderRequestValidator,
+      requestModels: {
+        'application/json': orderModel
+      }
+    })
   }
 }
