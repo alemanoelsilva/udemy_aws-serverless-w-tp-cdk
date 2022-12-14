@@ -39,10 +39,12 @@ productsAppStack.addDependency(eventsDdbStack)
 const ordersAppLayersStack = new OrdersAppLayersStack(app, 'OrdersAppLayers', props)
 const ordersAppStack = new OrdersAppStack(app, 'OrdersApp', {
   ...props,
-  productsDdb: productsAppStack.productsDdb
+  productsDdb: productsAppStack.productsDdb,
+  eventsDdb: eventsDdbStack.table,
 })
 ordersAppStack.addDependency(productsAppStack)
 ordersAppStack.addDependency(ordersAppLayersStack)
+ordersAppStack.addDependency(eventsDdbStack)
 
 //! api gateway stack
 const eCommerceApiStack = new ECommerceApiStack(app, 'ECommerceApi', {

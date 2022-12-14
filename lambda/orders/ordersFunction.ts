@@ -3,6 +3,7 @@ import {
   APIGatewayProxyResult,
   Context,
 } from 'aws-lambda';
+import { v4 as uuid } from 'uuid'
 import { Order, OrderProduct, OrderRepository } from '/opt/nodejs/ordersLayer';
 import {
   OrderRequest,
@@ -14,7 +15,8 @@ import {
   CarrierType,
 } from '/opt/nodejs/ordersApiLayer';
 import { Product, ProductRepository } from '/opt/nodejs/productsLayer';
-import { DynamoDB } from 'aws-sdk';
+import { DynamoDB, SNS } from 'aws-sdk';
+import { OrderEvent, Envelope, OrderEventType } from '/opt/nodejs/ordersEventsLayer';
 
 import * as AWSXRay from 'aws-xray-sdk';
 
@@ -23,8 +25,10 @@ AWSXRay.captureAWS(require('aws-sdk'));
 
 const ordersDdb = process.env.ORDERS_DDB!;
 const productsDdb = process.env.PRODUCTS_DDB!;
+const orderEventsTopicArn = process.env.ORDER_EVENTS_TOPIC_ARN!;
 
 const ddbClient = new DynamoDB.DocumentClient();
+const snsClient = new SNS();
 
 const orderRepository = new OrderRepository(ddbClient, ordersDdb);
 const productRepository = new ProductRepository(ddbClient, productsDdb);
@@ -103,7 +107,15 @@ export async function handler(
     }
 
     const order = buildOrder(orderRequest, products);
-    const orderCreated = await orderRepository.createOrder(order);
+    // const orderCreated = await orderRepository.createOrder(order);
+    // const eventResult = await sendOrderEvent(orderCreated, OrderEventType.CREATED, lambdaRequestID)
+
+    const [orderCreated, eventResult] = await Promise.all([
+      orderRepository.createOrder(order),
+      sendOrderEvent(order, OrderEventType.CREATED, lambdaRequestID)
+    ])
+
+    console.log(`Order created event sent - OrderId: ${orderCreated.sk} - MessageId: ${eventResult.MessageId}`)
 
     return {
       statusCode: 200,
@@ -115,6 +127,10 @@ export async function handler(
 
     try {
       const orderDeleted = await orderRepository.deleteOrder(email, orderId);
+
+      const eventResult = await sendOrderEvent(orderDeleted, OrderEventType.DELETED, lambdaRequestID)
+      console.log(`Order deleted event sent - OrderId: ${orderDeleted.sk} - MessageId: ${eventResult.MessageId}`)
+
       return {
         statusCode: 200,
         body: toJSON(covertToOrderResponse(orderDeleted)),
@@ -137,6 +153,40 @@ export async function handler(
       message: 'Bad request',
     }),
   };
+}
+
+function sendOrderEvent(order: Order, eventType: OrderEventType, lambdaRequestId: string) {
+  const orderEvent: OrderEvent = {
+    email: order.pk,
+    orderId: order.sk!,
+    billing: {
+      payment: order.billing.payment,
+      totalPrice: order.billing.totalPrice,
+    },
+    shipping: {
+      carrier: order.shipping.carrier,
+      type: order.shipping.type,
+    },
+    requestId: lambdaRequestId,
+    productCodes: order.products.map(product => product.code)
+
+  }
+
+  const envelope: Envelope = {
+    eventType,
+    data: toJSON(orderEvent)
+  }
+
+  return snsClient.publish({
+    TopicArn: orderEventsTopicArn,
+    Message: toJSON(envelope),
+    MessageAttributes: { // to filter message
+      eventType: {
+        DataType: 'String',
+        StringValue: eventType,
+      }
+    }
+  }).promise()
 }
 
 function covertToOrderResponse(order: Order): OrderResponse {
@@ -180,6 +230,8 @@ function buildOrder(orderRequest: OrderRequest, products: Product[]): Order {
 
   const order: Order = {
     pk: orderRequest.email,
+    sk: uuid(),
+    createdAt: Date.now(),
     billing: {
       payment: orderRequest.payment,
       totalPrice,

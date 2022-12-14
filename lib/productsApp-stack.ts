@@ -3,6 +3,7 @@ import * as lambdaNodeJS from 'aws-cdk-lib/aws-lambda-nodejs'
 import * as dynamoDB from 'aws-cdk-lib/aws-dynamodb'
 import * as ssm from 'aws-cdk-lib/aws-ssm'
 import * as cdk from 'aws-cdk-lib'
+import * as iam from 'aws-cdk-lib/aws-iam'
 
 import { Construct } from 'constructs'
 
@@ -88,6 +89,20 @@ export class ProductsAppStack extends cdk.Stack {
 
     //* granting permission to lambda function access (write) the dynamo table
     props.eventsDdb.grantWriteData(productEventsHandler)
+
+    //* creating a custom policy to specify the access rule
+    const eventsDdbPolicy = new iam.PolicyStatement({
+      effect: iam.Effect.ALLOW,
+      actions: ['dynamodb:PutItem'],
+      resources: [props.eventsDdb.tableArn],
+      conditions: {
+        ['ForAllValues:StringLike']: {
+          'dynamodb:LeadingKeys': ['#product*']
+        }
+      }
+    })
+
+    productEventsHandler.addToRolePolicy(eventsDdbPolicy)
 
     //*! lambda to manage the products (Admin)
     this.productsAdminHandler = new lambdaNodeJS.NodejsFunction(this, 'ProductsAdminFunction', {
