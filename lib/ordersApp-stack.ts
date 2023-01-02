@@ -6,6 +6,8 @@ import * as cdk from 'aws-cdk-lib'
 import * as sns from 'aws-cdk-lib/aws-sns'
 import * as subs from 'aws-cdk-lib/aws-sns-subscriptions'
 import * as iam from 'aws-cdk-lib/aws-iam'
+import * as sqs from 'aws-cdk-lib/aws-sqs'
+import * as lambdaEventSource from 'aws-cdk-lib/aws-lambda-event-sources'
 
 import { Construct } from 'constructs'
 
@@ -149,7 +151,7 @@ export class OrdersAppStack extends cdk.Stack {
       insightsVersion: lambda.LambdaInsightsVersion.VERSION_1_0_143_0,
     })
 
-    // add subscription with filter, triggered only when eventType is ORDER_CREATED
+    //* add subscription with filter, triggered only when eventType is ORDER_CREATED
     ordersTopic.addSubscription(new subs.LambdaSubscription(billingHandler, {
       filterPolicy: {
         eventType: sns.SubscriptionFilter.stringFilter({
@@ -157,5 +159,56 @@ export class OrdersAppStack extends cdk.Stack {
         })
       }
     }))
+
+    //! SQS DLQ
+    const orderEventsDlq = new sqs.Queue(this, 'OrderEventsDlq', {
+      queueName: 'order-events-dlq',
+      retentionPeriod: cdk.Duration.days(10),
+    })
+
+    //! SQS
+    const orderEventsQueue = new sqs.Queue(this, 'OrderEventsQueue', {
+      queueName: 'order-events',
+      deadLetterQueue: {
+        maxReceiveCount: 3,
+        queue: orderEventsDlq,
+      }
+    })
+
+    //* adding a new subscription to consume the ordersTopic message filtered by ORDER_CREATED eventType
+    ordersTopic.addSubscription(new subs.SqsSubscription(orderEventsQueue, {
+      filterPolicy: {
+        eventType: sns.SubscriptionFilter.stringFilter({
+          allowlist: ['ORDER_CREATED']
+        })
+      }
+    }))
+
+    //*! lambda to send email
+    const orderEmailHandler = new lambdaNodeJS.NodejsFunction(this, 'OrderEmailFunction', {
+      functionName: 'OrderEmailFunction',
+      entry: 'lambda/orders/orderEmailFunction.ts',
+      handler: 'handler',
+      memorySize: 128,
+      timeout: cdk.Duration.seconds(2),
+      bundling: {
+        minify: true,
+        sourceMap: false,
+      },
+      layers: [ordersEventsLayer],
+      // adding tracing to see on xray
+      tracing: lambda.Tracing.ACTIVE,
+      // more logs data
+      insightsVersion: lambda.LambdaInsightsVersion.VERSION_1_0_143_0,
+    })
+
+    //* adding the origin of the data where the lambda will fetch it
+    orderEmailHandler.addEventSource(new lambdaEventSource.SqsEventSource(orderEventsQueue, {
+      batchSize: 5,
+      enabled: true,
+      maxBatchingWindow: cdk.Duration.minutes(1),
+    }))
+    //* giving access to lambda consume message from the Queue
+    orderEventsQueue.grantConsumeMessages(orderEmailHandler)
   }
 }
