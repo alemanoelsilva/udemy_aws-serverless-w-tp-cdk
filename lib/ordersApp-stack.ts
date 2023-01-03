@@ -212,5 +212,14 @@ export class OrdersAppStack extends cdk.Stack {
     }))
     //* giving access to lambda consume message from the Queue
     orderEventsQueue.grantConsumeMessages(orderEmailHandler)
+
+    //* new policy to send email
+    const orderEmailSesPolicy = new iam.PolicyStatement({
+      effect: iam.Effect.ALLOW,
+      actions: ['ses:SendEmail', 'ses:SendRawEmail'],
+      resources: ['*']
+    })
+    //* attach policy to lambda function
+    orderEmailHandler.addToRolePolicy(orderEmailSesPolicy)
   }
 }
