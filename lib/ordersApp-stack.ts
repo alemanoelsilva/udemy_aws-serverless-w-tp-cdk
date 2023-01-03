@@ -36,6 +36,8 @@ export class OrdersAppStack extends cdk.Stack {
       billingMode: dynamoDB.BillingMode.PROVISIONED,
       readCapacity: 1,
       writeCapacity: 1,
+      //* on demand
+      // billingMode: dynamoDB.BillingMode.PAY_PER_REQUEST,
     })
 
     //! orders layers

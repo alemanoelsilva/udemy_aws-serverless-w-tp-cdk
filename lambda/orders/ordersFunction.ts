@@ -156,6 +156,7 @@ export async function handler(
 }
 
 function sendOrderEvent(order: Order, eventType: OrderEventType, lambdaRequestId: string) {
+  const productCodes: string[] = order.products?.map(product => product.code) || []
   const orderEvent: OrderEvent = {
     email: order.pk,
     orderId: order.sk!,
@@ -168,7 +169,7 @@ function sendOrderEvent(order: Order, eventType: OrderEventType, lambdaRequestId
       type: order.shipping.type,
     },
     requestId: lambdaRequestId,
-    productCodes: order.products.map(product => product.code)
+    productCodes,
 
   }
 
@@ -190,18 +191,18 @@ function sendOrderEvent(order: Order, eventType: OrderEventType, lambdaRequestId
 }
 
 function covertToOrderResponse(order: Order): OrderResponse {
-  const orderProducts: OrderProductResponse[] = order.products.map(
+  const orderProducts: OrderProductResponse[] = order.products?.map(
     (product: OrderProduct) => ({
       code: product.code,
       price: product.price,
     })
-  );
+  ) || [];
 
   const orderResponse: OrderResponse = {
     email: order.pk,
     id: order.sk!,
     createdAt: order.createdAt!,
-    products: orderProducts,
+    products: orderProducts.length ? orderProducts : undefined,
     billing: {
       payment: order.billing.payment as PaymentType,
       totalPrice: order.billing.totalPrice,
