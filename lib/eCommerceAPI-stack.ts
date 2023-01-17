@@ -12,6 +12,7 @@ interface ECommerceApiStackProps extends cdk.StackProps {
   productsFetchHandler: lambdaNodeJS.NodejsFunction
   productsAdminHandler: lambdaNodeJS.NodejsFunction
   ordersHandler: lambdaNodeJS.NodejsFunction
+  orderEventsFetchHandler: lambdaNodeJS.NodejsFunction
 }
 
 export class ECommerceApiStack extends cdk.Stack {
@@ -181,5 +182,25 @@ export class ECommerceApiStack extends cdk.Stack {
         'application/json': orderModel
       }
     })
+
+    //! adding ../events resource
+    const orderEventsResource = ordersResource.addResource('events')
+    const orderEventsFunctionIntegration = new apigateway.LambdaIntegration(props.orderEventsFetchHandler)
+
+    //! MAPPING routes to GET
+    //* [GET] ../events?email=XXX
+    //* [GET] ../events?email=XXX&eventType=ORDER_CREATED
+    orderEventsResource.addMethod('GET', orderEventsFunctionIntegration, {
+      requestParameters: {
+        'method.request.querystring.email': true,
+        'method.request.querystring.eventType': false,
+      },
+      requestValidator: new apigateway.RequestValidator(this, 'OrderEventsFetchValidator', {
+        restApi: api,
+        requestValidatorName: 'OrderEventsFetchValidator',
+        validateRequestParameters: true
+      })
+    })
+
   }
 }

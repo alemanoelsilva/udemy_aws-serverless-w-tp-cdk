@@ -28,6 +28,20 @@ export class EventsDdbStack extends cdk.Stack {
       writeCapacity: 1,
     })
 
+    this.table.addGlobalSecondaryIndex({
+      indexName: 'emailIndex',
+      partitionKey: {
+        name: 'email',
+        type: dynamoDB.AttributeType.STRING
+      },
+      sortKey: {
+        name: 'sk',
+        type: dynamoDB.AttributeType.STRING
+      },
+      projectionType: dynamoDB.ProjectionType.ALL,
+      //? nonKeyAttributes: [''] // if ProjectionType is INCLUDE
+    })
+
     const readScale = this.table.autoScaleReadCapacity({
       maxCapacity: 2,
       minCapacity: 1,
